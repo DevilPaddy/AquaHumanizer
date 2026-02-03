@@ -16,7 +16,7 @@ from enum import Enum
 from contextlib import asynccontextmanager
 import torch
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 from docx import Document
@@ -191,47 +191,106 @@ def paragraph_chunks(text: str, tokenizer, max_tokens: int) -> List[str]:
 
 
 def create_docx(text: str) -> bytes:
-    """Create DOCX file from text"""
-    doc = Document()
-    
-    for line in text.split("\n"):
-        if line.strip():
-            if line.strip().startswith("•") or line.strip().startswith("-"):
-                # Bullet point
-                doc.add_paragraph(line.strip(), style='List Bullet')
-            else:
-                # Regular paragraph
-                doc.add_paragraph(line.strip())
-        else:
-            # Empty line for spacing
-            doc.add_paragraph("")
-    
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.read()
+    """Create DOCX file from text with proper formatting"""
+    try:
+        doc = Document()
+        
+        # Split text into paragraphs
+        paragraphs = text.split('\n\n')
+        
+        for paragraph in paragraphs:
+            if not paragraph.strip():
+                continue
+                
+            # Handle different paragraph types
+            lines = paragraph.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if line.startswith("•") or line.startswith("-"):
+                    # Bullet point
+                    doc.add_paragraph(line, style='List Bullet')
+                elif line.isupper() and len(line.split()) <= 5:
+                    # Likely a heading
+                    doc.add_heading(line, level=2)
+                else:
+                    # Regular paragraph
+                    doc.add_paragraph(line)
+            
+            # Add spacing between sections
+            if paragraph != paragraphs[-1]:  # Don't add space after last paragraph
+                doc.add_paragraph("")
+        
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.read()
+    except Exception as e:
+        logger.error(f"DOCX generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
 
 
 def create_pdf(text: str) -> bytes:
-    """Create PDF file from text"""
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=LETTER)
-    width, height = LETTER
-    y = height - 40
-    
-    for line in text.split("\n"):
-        if y < 40:  # New page
-            c.showPage()
-            y = height - 40
+    """Create PDF file from text with proper formatting"""
+    try:
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=LETTER)
+        width, height = LETTER
+        y = height - 50  # Start from top with margin
+        line_height = 14
+        margin = 50
+        max_width = width - 2 * margin
         
-        # Handle long lines
-        line = line[:100] + "..." if len(line) > 100 else line
-        c.drawString(40, y, line)
-        y -= 14
-    
-    c.save()
-    buffer.seek(0)
-    return buffer.read()
+        # Split text into paragraphs
+        paragraphs = text.split('\n\n')
+        
+        for paragraph in paragraphs:
+            if not paragraph.strip():
+                continue
+                
+            # Handle bullet points
+            if paragraph.strip().startswith('•') or paragraph.strip().startswith('-'):
+                lines = paragraph.split('\n')
+            else:
+                # Wrap long paragraphs
+                words = paragraph.split()
+                lines = []
+                current_line = ""
+                
+                for word in words:
+                    test_line = current_line + " " + word if current_line else word
+                    # Rough character width estimation
+                    if len(test_line) * 6 < max_width:
+                        current_line = test_line
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = word
+                
+                if current_line:
+                    lines.append(current_line)
+            
+            # Draw lines
+            for line in lines:
+                if y < 50:  # New page if near bottom
+                    c.showPage()
+                    y = height - 50
+                
+                c.drawString(margin, y, line.strip())
+                y -= line_height
+            
+            # Add space between paragraphs
+            y -= line_height
+        
+        c.save()
+        buffer.seek(0)
+        return buffer.read()
+    except Exception as e:
+        logger.error(f"PDF generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
 
 class ParaphraseRequest(BaseModel):
@@ -452,14 +511,23 @@ async def humanize_document(
         if filename.endswith(".txt"):
             text = content.decode('utf-8')
         elif filename.endswith(".docx"):
-            # For now, return error - DOCX parsing requires python-docx
-            raise HTTPException(
-                status_code=400, 
-                detail="DOCX parsing not available in this version. Please convert to text first."
-            )
+            # Parse DOCX file using python-docx
+            try:
+                from docx import Document
+                doc_file = io.BytesIO(content)
+                doc = Document(doc_file)
+                text = "\n".join([paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()])
+                if not text.strip():
+                    raise HTTPException(status_code=400, detail="DOCX file appears to be empty")
+            except Exception as docx_error:
+                logger.error(f"DOCX parsing error: {str(docx_error)}")
+                raise HTTPException(status_code=400, detail=f"Could not parse DOCX file: {str(docx_error)}")
         else:
             # Try to decode as text
             text = content.decode('utf-8')
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not process file: {str(e)}")
     
@@ -478,17 +546,21 @@ async def humanize_document(
         return {"output": paraphrased, "style": style}
     
     elif output_format == "pdf":
+        logger.info(f"Generating PDF for {len(paraphrased)} characters")
         pdf_bytes = create_pdf(paraphrased)
-        return StreamingResponse(
-            io.BytesIO(pdf_bytes),
+        logger.info(f"Generated PDF: {len(pdf_bytes)} bytes")
+        return Response(
+            content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": "attachment; filename=paraphrased.pdf"}
         )
     
     elif output_format == "docx":
+        logger.info(f"Generating DOCX for {len(paraphrased)} characters")
         docx_bytes = create_docx(paraphrased)
-        return StreamingResponse(
-            io.BytesIO(docx_bytes),
+        logger.info(f"Generated DOCX: {len(docx_bytes)} bytes")
+        return Response(
+            content=docx_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": "attachment; filename=paraphrased.docx"}
         )

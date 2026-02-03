@@ -874,10 +874,10 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="text-sm text-dark-400">
-              © 2024 AquaHumanizer Pro. Professional AI text enhancement.
+              © 2026 AquilaStudios. Professional AI text enhancement.
             </div>
             <div className="flex items-center space-x-6 text-sm text-dark-400">
-              <span className="bg-success-600/20 text-success-400 px-2 py-1 rounded-full text-xs">
+              <span className="bg-success-600/20 text-success-400 px-2 py-1 rounded-full text-xs text-center">
                 Document Processing Available
               </span>
             </div>

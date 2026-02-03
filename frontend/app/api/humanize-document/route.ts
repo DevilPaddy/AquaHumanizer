@@ -88,6 +88,17 @@ export async function POST(request: NextRequest) {
       } else {
         // Return file download
         const headers = new Headers()
+        
+        // Set proper content type based on format
+        if (outputFormat === 'pdf') {
+          headers.set('Content-Type', 'application/pdf')
+          headers.set('Content-Disposition', 'attachment; filename="paraphrased.pdf"')
+        } else if (outputFormat === 'docx') {
+          headers.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+          headers.set('Content-Disposition', 'attachment; filename="paraphrased.docx"')
+        }
+        
+        // Override with backend headers if available
         if (result.headers['content-disposition']) {
           headers.set('Content-Disposition', result.headers['content-disposition'])
         }
