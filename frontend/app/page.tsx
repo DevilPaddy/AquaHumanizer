@@ -57,6 +57,7 @@ export default function Home() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('json')
   const [streamingProgress, setStreamingProgress] = useState<string>('')
   const [streamingResults, setStreamingResults] = useState<string[]>([])
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -73,6 +74,35 @@ export default function Home() {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }, [inputText])
+
+  // Prevent default drag behavior on the entire document
+  useEffect(() => {
+    const preventDefault = (e: DragEvent) => {
+      e.preventDefault()
+    }
+
+    const handleDocumentDrop = (e: DragEvent) => {
+      e.preventDefault()
+      // Only handle drops if we're on the document tab and not over the drop zone
+      if (activeTab === 'document' && !documentFile) {
+        const files = e.dataTransfer?.files
+        if (files && files.length > 0) {
+          processUploadedFile(files[0])
+        }
+      }
+    }
+
+    // Prevent default drag behavior
+    document.addEventListener('dragover', preventDefault)
+    document.addEventListener('dragenter', preventDefault)
+    document.addEventListener('drop', handleDocumentDrop)
+
+    return () => {
+      document.removeEventListener('dragover', preventDefault)
+      document.removeEventListener('dragenter', preventDefault)
+      document.removeEventListener('drop', handleDocumentDrop)
+    }
+  }, [activeTab, documentFile])
 
   // Toast management
   const addToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -155,22 +185,50 @@ export default function Home() {
   const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      // Validate file type
-      const allowedTypes = ['.txt', '.docx']
-      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
-      
-      if (!allowedTypes.some(type => fileExtension.endsWith(type))) {
-        addToast('Please upload .txt or .docx files only', 'error')
-        return
-      }
-      
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        addToast('File size must be less than 10MB', 'error')
-        return
-      }
-      
-      setDocumentFile(file)
-      addToast(`File "${file.name}" uploaded successfully`, 'success')
+      processUploadedFile(file)
+    }
+  }
+
+  const processUploadedFile = (file: File) => {
+    // Validate file type
+    const allowedTypes = ['.txt', '.docx']
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
+    
+    if (!allowedTypes.some(type => fileExtension.endsWith(type))) {
+      addToast('Please upload .txt or .docx files only', 'error')
+      return
+    }
+    
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      addToast('File size must be less than 10MB', 'error')
+      return
+    }
+    
+    setDocumentFile(file)
+    addToast(`File "${file.name}" uploaded successfully`, 'success')
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+
+    const files = event.dataTransfer.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      processUploadedFile(file)
     }
   }
 
@@ -179,6 +237,9 @@ export default function Home() {
       addToast('Please upload a document first', 'error')
       return
     }
+
+    // Freeze the current outputFormat to prevent race conditions
+    const currentOutputFormat = outputFormat
 
     setLoading(true)
     setError(null)
@@ -189,22 +250,34 @@ export default function Home() {
     setStreamingResults([])
     const startTime = Date.now()
 
+    console.log(`🚀 Starting document processing: ${documentFile.name} (${documentFile.size} bytes), style: ${style}, format: ${currentOutputFormat}`)
+
     try {
       const formData = new FormData()
       formData.append('file', documentFile)
       formData.append('style', style)
-      formData.append('output_format', outputFormat)
+      formData.append('output_format', currentOutputFormat)
 
-      if (outputFormat === 'json') {
+      if (currentOutputFormat === 'json') {
         // Regular processing for JSON output
+        console.log('📄 Processing for JSON output')
         const response = await fetch('/api/humanize-document', {
           method: 'POST',
           body: formData,
         })
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          throw new Error(errorData.error || `HTTP ${response.status}`)
+          const errorText = await response.text()
+          console.error(`❌ API error: ${response.status} - ${errorText}`)
+          throw new Error(errorText || `HTTP ${response.status}`)
+        }
+
+        // Check Content-Type before parsing JSON
+        const contentType = response.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+          const text = await response.text()
+          console.error('❌ Expected JSON, received:', contentType, text.slice(0, 200))
+          throw new Error('Server returned non-JSON response')
         }
 
         const data = await response.json()
@@ -213,39 +286,99 @@ export default function Home() {
         setProgressMessage('Document processed!')
         
         const endTime = Date.now()
-        setProcessingTime((endTime - startTime) / 1000)
+        const processingTime = (endTime - startTime) / 1000
+        setProcessingTime(processingTime)
         
+        console.log(`✅ JSON processing completed: ${data.output?.length || 0} characters (${processingTime.toFixed(2)}s)`)
         addToast('Document processed successfully!', 'success')
       } else {
         // File download for DOCX/PDF
+        console.log(`📁 Processing for ${currentOutputFormat.toUpperCase()} download`)
         const response = await fetch('/api/humanize-document', {
           method: 'POST',
           body: formData,
         })
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          throw new Error(errorData.error || `HTTP ${response.status}`)
+          const errorText = await response.text()
+          console.error(`❌ Download API error: ${response.status} - ${errorText}`)
+          throw new Error(errorText || `HTTP ${response.status}`)
         }
 
-        // Download the file
+        // Download the file with enhanced validation
         const blob = await response.blob()
+        console.log(`📦 Blob received: ${blob.size} bytes, type: ${blob.type}`)
+        
+        // Validate blob before download
+        if (blob.size === 0) {
+          console.error('❌ Blob validation failed: empty file')
+          throw new Error('Received empty file from server')
+        }
+        
+        // Additional validation for file format
+        const arrayBuffer = await blob.arrayBuffer()
+        const uint8Array = new Uint8Array(arrayBuffer)
+        
+        if (currentOutputFormat === 'pdf') {
+          // Check PDF header
+          const pdfHeader = String.fromCharCode(...Array.from(uint8Array.slice(0, 4)))
+          if (!pdfHeader.startsWith('%PDF')) {
+            console.error('❌ PDF validation failed: invalid header')
+            throw new Error('Invalid PDF file received')
+          }
+          console.log('✅ PDF validation passed')
+        } else if (currentOutputFormat === 'docx') {
+          // Check DOCX header (ZIP format)
+          const zipHeader = String.fromCharCode(...Array.from(uint8Array.slice(0, 2)))
+          if (zipHeader !== 'PK') {
+            console.error('❌ DOCX validation failed: invalid header')
+            throw new Error('Invalid DOCX file received')
+          }
+          console.log('✅ DOCX validation passed')
+        }
+        
+        console.log(`✅ File validation passed: ${blob.size} bytes`)
+        
+        // Create download with improved filename generation
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `humanized-${documentFile.name.split('.')[0]}.${outputFormat}`
+        
+        // Generate proper filename with extension
+        const baseFilename = documentFile.name.split('.')[0] || 'humanized'
+        const timestamp = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+        const filename = `${baseFilename}-${style}-${timestamp}.${currentOutputFormat}`
+        a.download = filename
+        
+        console.log(`💾 Initiating download: ${filename}`)
+        
         document.body.appendChild(a)
         a.click()
-        URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+        
+        // Clean up URL after download
+        setTimeout(() => {
+          URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+          console.log('🧹 Download cleanup completed')
+        }, 100)
         
         setProgress(100)
         setProgressMessage('File downloaded!')
-        addToast(`${outputFormat.toUpperCase()} file downloaded successfully!`, 'success')
+        
+        const endTime = Date.now()
+        const processingTime = (endTime - startTime) / 1000
+        setProcessingTime(processingTime)
+        
+        console.log(`✅ Download completed: ${filename} (${processingTime.toFixed(2)}s)`)
+        addToast(`${currentOutputFormat.toUpperCase()} file downloaded successfully!`, 'success')
       }
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process document')
+      const errorTime = Date.now() - startTime
+      const errorMessage = err instanceof Error ? err.message : 'Failed to process document'
+      console.error(`❌ Document processing failed (${(errorTime / 1000).toFixed(2)}s):`, err)
+      
+      setError(errorMessage)
       addToast('Failed to process document', 'error')
       setProgress(0)
       setProgressMessage('')
@@ -389,6 +522,7 @@ export default function Home() {
     setDocumentFile(null)
     setStreamingProgress('')
     setStreamingResults([])
+    setIsDragOver(false)
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
@@ -651,12 +785,26 @@ export default function Home() {
               {!documentFile ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-dark-600 rounded-lg p-8 text-center cursor-pointer hover:border-primary-600 hover:bg-primary-600/5 transition-all duration-200"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
+                    isDragOver
+                      ? 'border-primary-500 bg-primary-500/10 scale-105'
+                      : 'border-dark-600 hover:border-primary-600 hover:bg-primary-600/5'
+                  }`}
                 >
-                  <CloudArrowUpIcon className="w-12 h-12 text-dark-400 mx-auto mb-4" />
-                  <p className="text-dark-50 font-medium mb-2">Upload your document</p>
+                  <CloudArrowUpIcon className={`w-12 h-12 mx-auto mb-4 transition-colors duration-200 ${
+                    isDragOver ? 'text-primary-500' : 'text-dark-400'
+                  }`} />
+                  <p className="text-dark-50 font-medium mb-2">
+                    {isDragOver ? 'Drop your document here' : 'Upload your document'}
+                  </p>
                   <p className="text-sm text-dark-400 mb-4">
-                    Drag and drop or click to select .txt or .docx files
+                    {isDragOver 
+                      ? 'Release to upload your file' 
+                      : 'Drag and drop or click to select .txt or .docx files'
+                    }
                   </p>
                   <p className="text-xs text-dark-500">
                     Maximum file size: 10MB

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Configuration
-const HF_SPACE_URL = process.env.HF_SPACE_URL || 'https://devilseye2004-aq-humanizer.hf.space'
+const HF_SPACE_URL = process.env.HF_SPACE_URL 
 
 export async function POST(request: NextRequest) {
   try {

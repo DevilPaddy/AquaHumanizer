@@ -14,7 +14,7 @@ interface HFSpaceResponse {
 }
 
 // Configuration
-const HF_SPACE_URL = process.env.HF_SPACE_URL || 'https://devilseye2004-aq-humanizer.hf.space'
+const HF_SPACE_URL = process.env.HF_SPACE_URL 
 const REQUEST_TIMEOUT = 60000 // 60 seconds for long documents
 const MAX_TEXT_LENGTH = 10000 // Increased for long documents
 const MIN_WORDS = 5

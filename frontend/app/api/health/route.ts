@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const HF_SPACE_URL = process.env.HF_SPACE_URL || 'https://devilseye2004-aq-humanizer.hf.space'
+  const HF_SPACE_URL = process.env.HF_SPACE_URL
   
   return NextResponse.json({
     status: 'healthy',
