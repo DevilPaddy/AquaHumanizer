@@ -1,0 +1,215 @@
+/*
+ * AquaHumanizer Pro - Global Styles
+ * Copyright (c) 2026 AquilaStudios
+ * Licensed under the MIT License
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variant: normal;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: #0A0A0A;
+    color: #FAFAFA;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1A1A1A;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #404040;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background-color: #0070F3;
+    color: white;
+  }
+
+  ::-moz-selection {
+    background-color: #0070F3;
+    color: white;
+  }
+
+  /* Focus styles */
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid #0070F3;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Custom component classes */
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl;
+  }
+
+  .btn-secondary {
+    @apply bg-dark-900 hover:bg-dark-800 border border-dark-700 hover:border-dark-600 text-dark-50 px-4 py-2 rounded-lg transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-dark-900 border border-dark-700 rounded-xl transition-all duration-200 hover:border-dark-600;
+  }
+
+  .input-field {
+    @apply bg-dark-950 border border-dark-700 rounded-lg p-4 text-dark-50 placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent transition-all duration-200;
+  }
+
+  .toast-success {
+    @apply bg-success-600/20 border-success-600/30 text-success-400;
+  }
+
+  .toast-error {
+    @apply bg-red-500/20 border-red-500/30 text-red-400;
+  }
+
+  .toast-info {
+    @apply bg-primary-600/20 border-primary-600/30 text-primary-400;
+  }
+}
+
+@layer utilities {
+  /* Custom animations */
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slideIn {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    background: linear-gradient(135deg, #0070F3 0%, #00D084 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    background: rgba(26, 26, 26, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+  
+  button {
+    min-height: 44px;
+  }
+  
+  input, textarea, select {
+    min-height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card {
+    border-color: #666666;
+  }
+  
+  button {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .card {
+    border: 1px solid #ccc;
+    background: white;
+  }
+  
+  button {
+    display: none;
+  }
+}
