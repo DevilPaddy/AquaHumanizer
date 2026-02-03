@@ -375,6 +375,6 @@ Copyright (c) 2026 AquilaStudios
 
 **Built with ❤️ by AquilaStudios**
 
-[🌐 Live Demo](https://your-vercel-app.vercel.app) • [📖 Documentation](https://github.com/your-username/aquahumanizer-pro) • [🐛 Report Bug](https://github.com/your-username/aquahumanizer-pro/issues) • [💡 Request Feature](https://github.com/your-username/aquahumanizer-pro/discussions)
+[🌐 Live Demo](https://aqua-humanizer.aquilastudios.in/) • [📖 Documentation](https://github.com/your-username/aquahumanizer-pro) • [🐛 Report Bug](https://github.com/your-username/aquahumanizer-pro/issues) • [💡 Request Feature](https://github.com/your-username/aquahumanizer-pro/discussions)
 
 </div>
